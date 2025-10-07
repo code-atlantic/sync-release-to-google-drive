@@ -95,6 +95,8 @@ if [ "$OVERWRITE" == "true" ]; then
   SEARCH_RESPONSE=$(curl -s -G \
     "https://www.googleapis.com/drive/v3/files" \
     --data-urlencode "q=name='${FILE_NAME}' and '${FOLDER_ID}' in parents and trashed=false" \
+    --data-urlencode "includeItemsFromAllDrives=true" \
+    --data-urlencode "supportsAllDrives=true" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}")
 
   EXISTING_FILE_ID=$(echo "$SEARCH_RESPONSE" | jq -r '.files[0].id // empty')
@@ -102,7 +104,7 @@ if [ "$OVERWRITE" == "true" ]; then
   if [ -n "$EXISTING_FILE_ID" ]; then
     echo "🗑️  Deleting existing file: ${EXISTING_FILE_ID}"
     curl -s -X DELETE \
-      "https://www.googleapis.com/drive/v3/files/${EXISTING_FILE_ID}" \
+      "https://www.googleapis.com/drive/v3/files/${EXISTING_FILE_ID}?supportsAllDrives=true" \
       -H "Authorization: Bearer ${ACCESS_TOKEN}"
   fi
 fi
@@ -118,7 +120,7 @@ METADATA=$(jq -nc \
 
 # Step 1: Initialize resumable upload session
 UPLOAD_SESSION=$(curl -s -X POST \
-  "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable" \
+  "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
   -d "$METADATA" \
@@ -154,8 +156,8 @@ if [ "$SHARING" != "none" ]; then
 
   case "$SHARING" in
     anyone)
-      # Share with anyone who has the link
-      PERM_DATA='{"role":"'${SHARING_ROLE}'","type":"anyone"}'
+      # Share with anyone who has the link - simplified for maximum compatibility
+      PERM_DATA='{"role":"reader","type":"anyone"}'
       ;;
     domain)
       # Share with entire domain
@@ -181,7 +183,7 @@ if [ "$SHARING" != "none" ]; then
 
   if [ -n "$PERM_DATA" ]; then
     PERM_RESPONSE=$(curl -s -X POST \
-      "https://www.googleapis.com/drive/v3/files/${FILE_ID}/permissions" \
+      "https://www.googleapis.com/drive/v3/files/${FILE_ID}/permissions?supportsAllDrives=true&sendNotificationEmail=false" \
       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
       -H "Content-Type: application/json" \
       -d "$PERM_DATA")
@@ -200,9 +202,9 @@ fi
 # GENERATE OUTPUT LINKS
 # ============================================================================
 
-WEB_VIEW_LINK="https://drive.google.com/file/d/${FILE_ID}/view"
+WEB_VIEW_LINK="https://drive.google.com/file/d/${FILE_ID}/view?usp=sharing"
 DOWNLOAD_LINK="https://drive.google.com/uc?export=download&id=${FILE_ID}"
-WEB_CONTENT_LINK="https://drive.google.com/uc?id=${FILE_ID}"
+DIRECT_LINK="https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&authuser=0&confirm=t"
 
 echo ""
 echo "📋 Upload Summary:"
@@ -210,15 +212,18 @@ echo "  File ID: ${FILE_ID}"
 echo "  Filename: ${FILE_NAME}"
 echo "  View Link: ${WEB_VIEW_LINK}"
 echo "  Download Link: ${DOWNLOAD_LINK}"
+echo "  Direct Link: ${DIRECT_LINK}"
 echo ""
 
-# Set outputs
-{
-  echo "file_id=${FILE_ID}"
-  echo "file_name=${FILE_NAME}"
-  echo "web_view_link=${WEB_VIEW_LINK}"
-  echo "download_link=${DOWNLOAD_LINK}"
-  echo "web_content_link=${WEB_CONTENT_LINK}"
-} >> "$GITHUB_OUTPUT"
+# Set outputs (only if running in GitHub Actions)
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  {
+    echo "file_id=${FILE_ID}"
+    echo "file_name=${FILE_NAME}"
+    echo "web_view_link=${WEB_VIEW_LINK}"
+    echo "download_link=${DOWNLOAD_LINK}"
+    echo "direct_link=${DIRECT_LINK}"
+  } >> "$GITHUB_OUTPUT"
+fi
 
 echo "✅ Google Drive sync complete!"

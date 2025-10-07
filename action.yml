@@ -56,12 +56,12 @@ outputs:
     value: ${{ steps.upload.outputs.web_view_link }}
 
   download_link:
-    description: 'Direct download link (https://drive.google.com/uc?export=download&id=...)'
+    description: 'Standard download link (https://drive.google.com/uc?export=download&id=...)'
     value: ${{ steps.upload.outputs.download_link }}
 
-  web_content_link:
-    description: 'Direct browser-viewable link'
-    value: ${{ steps.upload.outputs.web_content_link }}
+  direct_link:
+    description: 'Direct download link with confirmation bypass (https://drive.usercontent.google.com/download?id=...)'
+    value: ${{ steps.upload.outputs.direct_link }}
 
 runs:
   using: 'composite'
