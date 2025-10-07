@@ -8,7 +8,7 @@ branding:
 
 inputs:
   filename:
-    description: 'File to upload (supports wildcards for multiple files)'
+    description: 'File(s) to upload. Accepts globs (e.g. dist/*.zip) or a newline-separated list.'
     required: true
 
   credentials:
@@ -27,7 +27,7 @@ inputs:
   sharing:
     description: 'Sharing mode: none, anyone, domain, specific'
     required: false
-    default: 'anyone'
+    default: 'none'
 
   sharing_role:
     description: 'Permission role: reader, writer, commenter'
@@ -41,6 +41,11 @@ inputs:
   sharing_domain:
     description: 'Domain for domain sharing mode'
     required: false
+
+  link_discoverable:
+    description: 'For sharing=anyone: whether the file is discoverable in search (allowFileDiscovery). Defaults to false (link-only).'
+    required: false
+    default: 'false'
 
 outputs:
   file_id:
@@ -56,12 +61,20 @@ outputs:
     value: ${{ steps.upload.outputs.web_view_link }}
 
   download_link:
-    description: 'Standard download link (https://drive.google.com/uc?export=download&id=...)'
+    description: 'Standard download link (Drive webContentLink)'
     value: ${{ steps.upload.outputs.download_link }}
 
   direct_link:
-    description: 'Direct download link with confirmation bypass (https://drive.usercontent.google.com/download?id=...)'
+    description: 'Direct download link (same as download_link for canonical behavior)'
     value: ${{ steps.upload.outputs.direct_link }}
+
+  updated:
+    description: 'Whether the file content was updated (true) vs created (false)'
+    value: ${{ steps.upload.outputs.updated }}
+
+  skipped:
+    description: 'Whether upload was skipped due to identical content'
+    value: ${{ steps.upload.outputs.skipped }}
 
 runs:
   using: 'composite'
@@ -79,3 +92,4 @@ runs:
         INPUT_SHARING_ROLE: ${{ inputs.sharing_role }}
         INPUT_SHARING_EMAIL: ${{ inputs.sharing_email }}
         INPUT_SHARING_DOMAIN: ${{ inputs.sharing_domain }}
+        INPUT_LINK_DISCOVERABLE: ${{ inputs.link_discoverable }}
