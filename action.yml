@@ -1,0 +1,81 @@
+name: 'Sync Release to Google Drive'
+description: 'Upload files to Google Drive with automatic sharing and permission management'
+author: 'Code Atlantic'
+
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'
+
+inputs:
+  filename:
+    description: 'File to upload (supports wildcards for multiple files)'
+    required: true
+
+  credentials:
+    description: 'Base64-encoded Google Service Account credentials JSON'
+    required: true
+
+  folder_id:
+    description: 'Google Drive folder ID to upload to'
+    required: true
+
+  overwrite:
+    description: 'Overwrite existing files with same name (true/false)'
+    required: false
+    default: 'true'
+
+  sharing:
+    description: 'Sharing mode: none, anyone, domain, specific'
+    required: false
+    default: 'anyone'
+
+  sharing_role:
+    description: 'Permission role: reader, writer, commenter'
+    required: false
+    default: 'reader'
+
+  sharing_email:
+    description: 'Email address for specific sharing mode'
+    required: false
+
+  sharing_domain:
+    description: 'Domain for domain sharing mode'
+    required: false
+
+outputs:
+  file_id:
+    description: 'Google Drive file ID'
+    value: ${{ steps.upload.outputs.file_id }}
+
+  file_name:
+    description: 'Uploaded filename'
+    value: ${{ steps.upload.outputs.file_name }}
+
+  web_view_link:
+    description: 'Google Drive web view link (https://drive.google.com/file/d/...)'
+    value: ${{ steps.upload.outputs.web_view_link }}
+
+  download_link:
+    description: 'Direct download link (https://drive.google.com/uc?export=download&id=...)'
+    value: ${{ steps.upload.outputs.download_link }}
+
+  web_content_link:
+    description: 'Direct browser-viewable link'
+    value: ${{ steps.upload.outputs.web_content_link }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Upload and configure sharing
+      id: upload
+      shell: bash
+      run: ${{ github.action_path }}/upload.sh
+      env:
+        INPUT_FILENAME: ${{ inputs.filename }}
+        INPUT_CREDENTIALS: ${{ inputs.credentials }}
+        INPUT_FOLDER_ID: ${{ inputs.folder_id }}
+        INPUT_OVERWRITE: ${{ inputs.overwrite }}
+        INPUT_SHARING: ${{ inputs.sharing }}
+        INPUT_SHARING_ROLE: ${{ inputs.sharing_role }}
+        INPUT_SHARING_EMAIL: ${{ inputs.sharing_email }}
+        INPUT_SHARING_DOMAIN: ${{ inputs.sharing_domain }}
