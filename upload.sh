@@ -107,13 +107,33 @@ if [ "$OVERWRITE" == "true" ]; then
   fi
 fi
 
-# Upload file
+# Upload file using resumable upload for reliability
 echo "⬆️  Uploading to Google Drive..."
-UPLOAD_RESPONSE=$(curl -s -X POST \
-  "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart" \
+
+# Create metadata
+METADATA=$(jq -nc \
+  --arg name "$FILE_NAME" \
+  --arg folderId "$FOLDER_ID" \
+  '{"name":$name,"parents":[$folderId]}')
+
+# Step 1: Initialize resumable upload session
+UPLOAD_SESSION=$(curl -s -X POST \
+  "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -F "metadata={\"name\":\"${FILE_NAME}\",\"parents\":[\"${FOLDER_ID}\"]};type=application/json;charset=UTF-8" \
-  -F "file=@${FILENAME};type=${MIME_TYPE}")
+  -H "Content-Type: application/json" \
+  -d "$METADATA" \
+  -i | grep -i "^location:" | sed 's/^location: //i' | tr -d '\r')
+
+if [ -z "$UPLOAD_SESSION" ]; then
+  echo "❌ Failed to initialize upload session"
+  exit 1
+fi
+
+# Step 2: Upload file content
+UPLOAD_RESPONSE=$(curl -s -X PUT \
+  "$UPLOAD_SESSION" \
+  -H "Content-Type: ${MIME_TYPE}" \
+  --data-binary "@${FILENAME}")
 
 FILE_ID=$(echo "$UPLOAD_RESPONSE" | jq -r '.id')
 
