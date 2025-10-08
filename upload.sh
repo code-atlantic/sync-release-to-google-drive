@@ -84,6 +84,7 @@ echo "✅ Authentication successful"
 # ---- folder preflight ------------------------------------------------------
 if ! $CURL -G "https://www.googleapis.com/drive/v3/files/${FOLDER_ID}" \
      --data-urlencode "fields=id,mimeType" \
+     --data-urlencode "supportsAllDrives=true" \
      -H "Authorization: Bearer ${ACCESS_TOKEN}" | \
      jq -e 'select(.mimeType=="application/vnd.google-apps.folder")' >/dev/null; then
   echo "❌ folder_id is not a folder or not accessible"
@@ -140,9 +141,18 @@ upload_one() {
     --data-urlencode "supportsAllDrives=true" \
     -H "Authorization: Bearer ${ACCESS_TOKEN}")
 
-  mapfile -t MATCHING_IDS < <(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n) | .id' <<<"$SEARCH")
+  # Parse once, reuse everywhere (performance optimization)
+  local FILE_DATA
+  FILE_DATA=$(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n)' <<<"$SEARCH")
+
+  # Populate array (portable: works with bash 3.2+)
+  local MATCHING_IDS=()
+  while IFS= read -r id; do
+    [[ -n "$id" ]] && MATCHING_IDS+=("$id")
+  done < <(echo "$FILE_DATA" | jq -r '.id')
+  
   local REMOTE_MD5
-  REMOTE_MD5=$(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n) | .md5Checksum' <<<"$SEARCH" | head -n1)
+  REMOTE_MD5=$(echo "$FILE_DATA" | jq -r '.md5Checksum // empty' | head -n1)
   local LOCAL_MD5; LOCAL_MD5=$(md5_local "$PATH_IN" || true)
 
   local FILE_ID=""
@@ -151,7 +161,7 @@ upload_one() {
 
   if [[ -n "$REMOTE_MD5" && -n "$LOCAL_MD5" && "$REMOTE_MD5" == "$LOCAL_MD5" ]]; then
     echo "ℹ️  Skipping upload; identical content (MD5 match)."
-    FILE_ID=$(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n) | .id' <<<"$SEARCH" | head -n1)
+    FILE_ID=$(echo "$FILE_DATA" | jq -r '.id' | head -n1)
     SKIPPED=true
   else
     # Choose create vs update
@@ -167,7 +177,7 @@ upload_one() {
         -H "Content-Type: application/json; charset=UTF-8" \
         -H "X-Upload-Content-Type: ${MIME_TYPE}" \
         ${SIZE:+-H "X-Upload-Content-Length: ${SIZE}"} \
-        -d "$METADATA" -D - | awk 'tolower($1$2)=="location:"{print $2}' | tr -d '\r')
+        -d "$METADATA" -D - | grep -i '^Location:' | sed 's/^[Ll]ocation: *//' | tr -d '\r')
       if [ -z "$SESSION" ]; then echo "❌ Failed to init update session"; return 1; fi
       $CURL -X PUT "$SESSION" -H "Content-Type: ${MIME_TYPE}" --data-binary "@${PATH_IN}" >/dev/null
       UPDATED=true
@@ -180,7 +190,7 @@ upload_one() {
         done
       elif [[ ${#MATCHING_IDS[@]} -ge 1 && "$OVERWRITE" != "true" ]]; then
         echo "ℹ️  overwrite=false and file exists; using existing."
-        FILE_ID=$(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n) | .id' <<<"$SEARCH" | head -n1)
+        FILE_ID=$(echo "$FILE_DATA" | jq -r '.id' | head -n1)
         SKIPPED=true
       fi
       if [[ "$SKIPPED" = false ]]; then
@@ -193,7 +203,7 @@ upload_one() {
           -H "Content-Type: application/json; charset=UTF-8" \
           -H "X-Upload-Content-Type: ${MIME_TYPE}" \
           ${SIZE:+-H "X-Upload-Content-Length: ${SIZE}"} \
-          -d "$METADATA" -D - | awk 'tolower($1$2)=="location:"{print $2}' | tr -d '\r')
+          -d "$METADATA" -D - | grep -i '^Location:' | sed 's/^[Ll]ocation: *//' | tr -d '\r')
         [ -n "$SESSION" ] || { echo "❌ Failed to initialize upload session"; return 1; }
         local RESP
         RESP=$($CURL -X PUT "$SESSION" -H "Content-Type: ${MIME_TYPE}" --data-binary "@${PATH_IN}")
