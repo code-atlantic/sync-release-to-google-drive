@@ -3,7 +3,7 @@
 **Production-ready GitHub Action for uploading files to Google Drive with intelligent deduplication, update-in-place, and comprehensive sharing controls.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.1-green.svg)](CHANGELOG.md)
 
 ## ✨ Features
 
@@ -15,6 +15,7 @@
 - 📊 **Rich outputs** - File IDs, links, update/skip status
 - 🛡️ **Robust error handling** - Retries, timeouts, preflight checks
 - 📦 **Canonical links** - Direct from Drive API (no brittle URL hacks)
+- 🏢 **Shared Drive support** - Full compatibility with Google Workspace Shared Drives
 
 ## 🚀 Quick Start
 
@@ -22,7 +23,7 @@
 
 ```yaml
 - name: Upload to Google Drive
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: my-plugin.zip
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -33,7 +34,7 @@
 
 ```yaml
 - name: Upload and share publicly
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: release-package.zip
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -46,7 +47,7 @@
 
 ```yaml
 - name: Upload all release artifacts
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: 'dist/*.zip'
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -74,11 +75,11 @@
 |--------|-------------|
 | `file_id` | Google Drive file ID |
 | `file_name` | Uploaded filename |
-| `web_view_link` | Google Drive web view link |
-| `download_link` | Standard download link (Drive webContentLink) |
-| `direct_link` | Direct download link (same as download_link) |
-| `updated` | Whether file was updated (`true`) vs created (`false`) |
-| `skipped` | Whether upload was skipped due to identical content |
+| `web_view_link` | Google Drive web view link (`https://drive.google.com/file/d/...`) |
+| `download_link` | Canonical download link (Drive API `webContentLink`) |
+| `direct_link` | Direct download link (same as `download_link`) |
+| `updated` | Whether file was updated (`true`) vs created (`false`) - `false` if skipped |
+| `skipped` | Whether upload was skipped due to identical MD5 (`true`) or not (`false`) |
 
 ## 🔧 Setup
 
@@ -92,10 +93,17 @@
 
 ### 2. Configure Google Drive
 
+**For Personal Drive:**
 1. Create a folder in Google Drive
 2. Right-click → Share → Add the service account email
 3. Grant **Editor** permissions
 4. Copy the folder ID from URL: `https://drive.google.com/drive/folders/FOLDER_ID_HERE`
+
+**For Shared Drive (Google Workspace):**
+1. Open your Shared Drive
+2. Right-click → Manage members → Add the service account email
+3. Grant **Content Manager** or **Manager** permissions
+4. Create or select a folder, copy folder ID from URL
 
 ### 3. Add GitHub Secrets
 
@@ -134,7 +142,7 @@ jobs:
       
       - name: Upload to Google Drive
         id: drive_upload
-        uses: code-atlantic/sync-release-to-google-drive@v1
+        uses: code-atlantic/sync-release-to-google-drive@v0.3.1
         with:
           filename: dist/my-plugin_${{ github.ref_name }}.zip
           credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -152,7 +160,7 @@ jobs:
 ```yaml
 - name: Upload only if changed
   id: upload
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: my-file.zip
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -171,7 +179,7 @@ jobs:
 
 ```yaml
 - name: Share with organization
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: internal-release.zip
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -185,7 +193,7 @@ jobs:
 
 ```yaml
 - name: Share with specific user
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: confidential.zip
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -218,10 +226,12 @@ jobs:
 ### Optimizations
 
 - **MD5 Deduplication**: Skip uploads when content identical (saves bandwidth)
+- **Cached File Search**: Parse file metadata once per file (3x → 1x jq calls)
 - **Update-in-place**: Preserve permissions/links vs delete+create
 - **Retry Logic**: 5 retries with exponential backoff for transient failures
 - **Timeout Protection**: 300s max per request prevents hanging
 - **Batch Operations**: Efficient multi-file processing
+- **Bash 3.2+ Compatible**: Portable array handling (works on macOS and all CI runners)
 
 ### Benchmarks
 
@@ -240,6 +250,8 @@ jobs:
 **❌ "folder_id is not a folder or not accessible"**
 - Verify folder ID is correct
 - Ensure service account has Editor permissions on folder
+- For Shared Drives: Add service account as member with Content Manager/Manager role
+- For Shared Drives: Ensure `supportsAllDrives=true` is set (automatic in v0.3.0+)
 
 **❌ "No files matched: dist/*.zip"**
 - Check glob pattern matches files in workspace
@@ -255,7 +267,7 @@ Enable debug output:
 
 ```yaml
 - name: Upload with debug
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: my-file.zip
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
@@ -271,7 +283,7 @@ Enable debug output:
 ```yaml
 - name: Upload to Drive
   id: drive
-  uses: code-atlantic/sync-release-to-google-drive@v1
+  uses: code-atlantic/sync-release-to-google-drive@v0.3.1
   with:
     filename: release.zip
     credentials: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
