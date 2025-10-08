@@ -142,7 +142,7 @@ upload_one() {
 
   mapfile -t MATCHING_IDS < <(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n) | .id' <<<"$SEARCH")
   local REMOTE_MD5
-  REMOTE_MD5=$(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n) | .md5Checksum // empty' <<<"$SEARCH" | head -n1)
+  REMOTE_MD5=$(jq -r --arg n "$FILE_NAME" '.files[] | select(.name==$n) | .md5Checksum' <<<"$SEARCH" | head -n1)
   local LOCAL_MD5; LOCAL_MD5=$(md5_local "$PATH_IN" || true)
 
   local FILE_ID=""
@@ -167,7 +167,7 @@ upload_one() {
         -H "Content-Type: application/json; charset=UTF-8" \
         -H "X-Upload-Content-Type: ${MIME_TYPE}" \
         ${SIZE:+-H "X-Upload-Content-Length: ${SIZE}"} \
-        -d "$METADATA" -D - | grep -i '^Location:' | sed 's/^[Ll]ocation: *//' | tr -d '\r')
+        -d "$METADATA" -D - | awk 'tolower($1$2)=="location:"{print $2}' | tr -d '\r')
       if [ -z "$SESSION" ]; then echo "❌ Failed to init update session"; return 1; fi
       $CURL -X PUT "$SESSION" -H "Content-Type: ${MIME_TYPE}" --data-binary "@${PATH_IN}" >/dev/null
       UPDATED=true
@@ -193,7 +193,7 @@ upload_one() {
           -H "Content-Type: application/json; charset=UTF-8" \
           -H "X-Upload-Content-Type: ${MIME_TYPE}" \
           ${SIZE:+-H "X-Upload-Content-Length: ${SIZE}"} \
-          -d "$METADATA" -D - | grep -i '^Location:' | sed 's/^[Ll]ocation: *//' | tr -d '\r')
+          -d "$METADATA" -D - | awk 'tolower($1$2)=="location:"{print $2}' | tr -d '\r')
         [ -n "$SESSION" ] || { echo "❌ Failed to initialize upload session"; return 1; }
         local RESP
         RESP=$($CURL -X PUT "$SESSION" -H "Content-Type: ${MIME_TYPE}" --data-binary "@${PATH_IN}")

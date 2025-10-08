@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Performance optimization**: Reduced redundant jq parsing by caching file search results (3x calls → 1x per file)
+- **Code clarity**: Improved session URL extraction with more readable grep+sed pattern
+
+### Fixed
+- Eliminated duplicate JSON parsing that could impact performance with large folder listings
+
 ## [0.3.0] - 2025-10-07
 
 ### 🎉 Production-Ready Release
